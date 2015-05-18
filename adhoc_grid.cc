@@ -1,51 +1,3 @@
-/* -*-  Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
-/*
- * Copyright (c) 2009 University of Washington
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation;
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
- */
-
-
-
-/*
-  LAB Assignment #5
-    1. Setup a 5x5 wireless adhoc network with a grid. You may use
-    examples/wireless/wifi-simple-adhoc-grid.cc as a base.
-
-    2. Install the OLSR routing protocol.
-
-    3. Setup three UDP traffic flows, one along each diagonal and one
-    along the middle (at high rates of transmission).
-
-    4. Setup the ns-3 flow monitor for each of these flows.
-
-    5. Now schedule each of the flows at times 1s, 1.5s, and 2s.
-
-    6. Now using the flow monitor, observe the throughput of each of the
-    UDP flows. Furthermore, use the tracing mechanism to monitor the number of
-    packet collisions/drops at intermediary nodes. Around which nodes are most
-    of the collisions/drops happening?
-
-    7. Now repeat the experiment with RTS/CTS enabled on the wifi devices.
-
-    8. Show the difference in throughput and packet drops if any.
-
-
-  Solution by: Konstantinos Katsaros (K.Katsaros@surrey.ac.uk)
-  based on wifi-simple-adhoc-grid.cc
-*/
 
 // The default layout is like this, on a 2-D grid.
 //
@@ -71,13 +23,13 @@
 #include "ns3/olsr-helper.h"
 #include "ns3/flow-monitor-module.h"
 #include "myapp.h"
-
+#include "ns3/netanim-module.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
 #include <string>
 
-NS_LOG_COMPONENT_DEFINE ("Lab5");
+NS_LOG_COMPONENT_DEFINE ("Adhoc");
 
 using namespace ns3;
 
@@ -118,12 +70,18 @@ int main (int argc, char *argv[])
   uint32_t packetSize = 600; // bytes
   uint32_t numPackets = 10000000;
   std::string rtslimit = "1500";
+  uint32_t power=16;
+  double m_rxGain=-10;
+  int prog=8;
   CommandLine cmd;
 
   cmd.AddValue ("phyMode", "Wifi Phy mode", phyMode);
   cmd.AddValue ("distance", "distance (m)", distance);
   cmd.AddValue ("packetSize", "distance (m)", packetSize);
   cmd.AddValue ("rtslimit", "RTS/CTS Threshold (bytes)", rtslimit);
+  cmd.AddValue ("power", "set tx power", power);
+  cmd.AddValue ("rxgain", "set rxgain", m_rxGain);
+  cmd.AddValue ("prog","select program",prog);
   cmd.Parse (argc, argv);
   // Convert to time object
   Time interPacketInterval = Seconds (interval);
@@ -140,8 +98,10 @@ int main (int argc, char *argv[])
   WifiHelper wifi;
 
   YansWifiPhyHelper wifiPhy =  YansWifiPhyHelper::Default ();
+  wifiPhy.Set ("TxPowerEnd", DoubleValue (power) );
+  wifiPhy.Set ("TxPowerStart", DoubleValue (power) );
   // set it to zero; otherwise, gain will be added
-  wifiPhy.Set ("RxGain", DoubleValue (-10) ); 
+  wifiPhy.Set ("RxGain", DoubleValue (m_rxGain) ); 
   // ns-3 supports RadioTap and Prism tracing extensions for 802.11b
   wifiPhy.SetPcapDataLinkType (YansWifiPhyHelper::DLT_IEEE802_11_RADIO); 
 
@@ -190,13 +150,13 @@ int main (int argc, char *argv[])
 
   uint16_t sinkPort = 6; // use the same for all apps
 
-  // UDP connection from N0 to N24
+  // UDP connection from N0 to N11
 
-   Address sinkAddress1 (InetSocketAddress (ifcont.GetAddress (24), sinkPort)); // interface of n24
+   Address sinkAddress1 (InetSocketAddress (ifcont.GetAddress (11), sinkPort)); // interface of n24
    PacketSinkHelper packetSinkHelper1 ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), sinkPort));
-   ApplicationContainer sinkApps1 = packetSinkHelper1.Install (c.Get (24)); //n2 as sink
+   ApplicationContainer sinkApps1 = packetSinkHelper1.Install (c.Get (11)); //n2 as sink
    sinkApps1.Start (Seconds (0.));
-   sinkApps1.Stop (Seconds (100.));
+   sinkApps1.Stop (Seconds (50.));
 
    Ptr<Socket> ns3UdpSocket1 = Socket::CreateSocket (c.Get (0), UdpSocketFactory::GetTypeId ()); //source at n0
 
@@ -204,42 +164,42 @@ int main (int argc, char *argv[])
    Ptr<MyApp> app1 = CreateObject<MyApp> ();
    app1->Setup (ns3UdpSocket1, sinkAddress1, packetSize, numPackets, DataRate ("1Mbps"));
    c.Get (0)->AddApplication (app1);
-   app1->SetStartTime (Seconds (31.));
-   app1->SetStopTime (Seconds (100.));
+   app1->SetStartTime (Seconds (0.01));
+   app1->SetStopTime (Seconds (50.));
 
-   // UDP connection from N10 to N14
+   // UDP connection from N20 to N17
 
-    Address sinkAddress2 (InetSocketAddress (ifcont.GetAddress (14), sinkPort)); // interface of n14
+    Address sinkAddress2 (InetSocketAddress (ifcont.GetAddress (17), sinkPort)); // interface of n14
     PacketSinkHelper packetSinkHelper2 ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), sinkPort));
-    ApplicationContainer sinkApps2 = packetSinkHelper2.Install (c.Get (14)); //n14 as sink
+    ApplicationContainer sinkApps2 = packetSinkHelper2.Install (c.Get (17)); //n14 as sink
     sinkApps2.Start (Seconds (0.));
-    sinkApps2.Stop (Seconds (100.));
+    sinkApps2.Stop (Seconds (50.));
 
-    Ptr<Socket> ns3UdpSocket2 = Socket::CreateSocket (c.Get (10), UdpSocketFactory::GetTypeId ()); //source at n10
+    Ptr<Socket> ns3UdpSocket2 = Socket::CreateSocket (c.Get (20), UdpSocketFactory::GetTypeId ()); //source at n10
 
     // Create UDP application at n10
     Ptr<MyApp> app2 = CreateObject<MyApp> ();
     app2->Setup (ns3UdpSocket2, sinkAddress2, packetSize, numPackets, DataRate ("1Mbps"));
-    c.Get (10)->AddApplication (app2);
-    app2->SetStartTime (Seconds (31.5));
-    app2->SetStopTime (Seconds (100.));
+    c.Get (20)->AddApplication (app2);
+    app2->SetStartTime (Seconds (0.01));
+    app2->SetStopTime (Seconds (50.));
 
     // UDP connection from N20 to N4
 
-     Address sinkAddress3 (InetSocketAddress (ifcont.GetAddress (4), sinkPort)); // interface of n4
+     Address sinkAddress3 (InetSocketAddress (ifcont.GetAddress (12), sinkPort)); // interface of n4
      PacketSinkHelper packetSinkHelper3 ("ns3::UdpSocketFactory", InetSocketAddress (Ipv4Address::GetAny (), sinkPort));
-     ApplicationContainer sinkApps3 = packetSinkHelper3.Install (c.Get (4)); //n2 as sink
+     ApplicationContainer sinkApps3 = packetSinkHelper3.Install (c.Get (12)); //n2 as sink
      sinkApps3.Start (Seconds (0.));
-     sinkApps3.Stop (Seconds (100.));
+     sinkApps3.Stop (Seconds (50.));
 
-     Ptr<Socket> ns3UdpSocket3 = Socket::CreateSocket (c.Get (20), UdpSocketFactory::GetTypeId ()); //source at n20
+     Ptr<Socket> ns3UdpSocket3 = Socket::CreateSocket (c.Get (24), UdpSocketFactory::GetTypeId ()); //source at n20
 
      // Create UDP application at n20
      Ptr<MyApp> app3 = CreateObject<MyApp> ();
      app3->Setup (ns3UdpSocket3, sinkAddress3, packetSize, numPackets, DataRate ("1Mbps"));
-     c.Get (20)->AddApplication (app3);
-     app3->SetStartTime (Seconds (32.));
-     app3->SetStopTime (Seconds (100.));
+     c.Get (24)->AddApplication (app3);
+     app3->SetStartTime (Seconds (0.01));
+     app3->SetStopTime (Seconds (50.));
 
   // Install FlowMonitor on all nodes
   FlowMonitorHelper flowmon;
@@ -253,7 +213,8 @@ int main (int argc, char *argv[])
 
   Simulator::Schedule(Seconds(5.0), &PrintDrop);
 
-  Simulator::Stop (Seconds (100.0));
+  Simulator::Stop (Seconds (40.0));
+  AnimationInterface anim ("animation121.xml");
   Simulator::Run ();
 
   PrintDrop();
@@ -267,17 +228,66 @@ int main (int argc, char *argv[])
     {
     Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow (iter->first);
 
-      if ((t.sourceAddress == Ipv4Address("10.1.1.1") && t.destinationAddress == Ipv4Address("10.1.1.25"))
-      || (t.sourceAddress == Ipv4Address("10.1.1.11") && t.destinationAddress == Ipv4Address("10.1.1.15"))
-      || (t.sourceAddress == Ipv4Address("10.1.1.21") && t.destinationAddress == Ipv4Address("10.1.1.5")))
+      if ((t.sourceAddress == Ipv4Address("10.1.1.1") && t.destinationAddress == Ipv4Address("10.1.1.12"))
+      || (t.sourceAddress == Ipv4Address("10.1.1.21") && t.destinationAddress == Ipv4Address("10.1.1.18"))
+      || (t.sourceAddress == Ipv4Address("10.1.1.25") && t.destinationAddress == Ipv4Address("10.1.1.13")))
         {
         NS_LOG_UNCOND("Flow ID: " << iter->first << " Src Addr " << t.sourceAddress << " Dst Addr " << t.destinationAddress);
         NS_LOG_UNCOND("Tx Packets = " << iter->second.txPackets);
         NS_LOG_UNCOND("Rx Packets = " << iter->second.rxPackets);
         NS_LOG_UNCOND("Throughput: " << iter->second.rxBytes * 8.0 / (iter->second.timeLastRxPacket.GetSeconds()-iter->second.timeFirstTxPacket.GetSeconds()) / 1024  << " Kbps");
+        
+        if (prog==0){
+            std::ofstream out;
+            out.open("tpVsdist.plt", std::ios_base::app);
+            out <<distance<<" "<< iter->second.rxBytes * 8.0 / (iter->second.timeLastRxPacket.GetSeconds()-iter->second.timeFirstTxPacket.GetSeconds()) / 1024 <<"\n" ;  
+        }
+        else if (prog==1){
+            std::ofstream out1;
+            out1.open("tpVspacketsize.plt", std::ios_base::app);
+            out1 <<packetSize<<" "<< iter->second.rxBytes * 8.0 / (iter->second.timeLastRxPacket.GetSeconds()-iter->second.timeFirstTxPacket.GetSeconds()) / 1024 <<"\n" ;  
+        }
+        else if (prog==2){
+            std::ofstream out2;
+            out2.open("tpVspower.plt", std::ios_base::app);
+            out2 <<power<<" "<< iter->second.rxBytes * 8.0 / (iter->second.timeLastRxPacket.GetSeconds()-iter->second.timeFirstTxPacket.GetSeconds()) / 1024 <<"\n" ;  
+          
+        }
+        else if (prog==3){
+            std::ofstream out3;
+            out3.open("tpVsrxgain.plt", std::ios_base::app);
+            out3 <<m_rxGain<<" "<< iter->second.rxBytes * 8.0 / (iter->second.timeLastRxPacket.GetSeconds()-iter->second.timeFirstTxPacket.GetSeconds()) / 1024 <<"\n" ;  
+        }
+        else if (prog==4){
+            std::ofstream out4;
+            out4.open("tpVsdist1.plt", std::ios_base::app);
+            out4 <<distance<<" "<< iter->second.rxBytes * 8.0 / (iter->second.timeLastRxPacket.GetSeconds()-iter->second.timeFirstTxPacket.GetSeconds()) / 1024 <<"\n" ;  
+        }
+        else if (prog==5){
+            std::ofstream out5;
+            out5.open("tpVspacketsize1.plt", std::ios_base::app);
+            out5 <<packetSize<<" "<< iter->second.rxBytes * 8.0 / (iter->second.timeLastRxPacket.GetSeconds()-iter->second.timeFirstTxPacket.GetSeconds()) / 1024 <<"\n" ;  
+        }
+        else if (prog==6){
+            std::ofstream out6;
+            out6.open("tpVspower1.plt", std::ios_base::app);
+            out6 <<power<<" "<< iter->second.rxBytes * 8.0 / (iter->second.timeLastRxPacket.GetSeconds()-iter->second.timeFirstTxPacket.GetSeconds()) / 1024 <<"\n" ;  
+          
+        }
+        else if (prog==7){
+            std::ofstream out7;
+            out7.open("tpVsrxgain1.plt", std::ios_base::app);
+            out7 <<m_rxGain<<" "<< iter->second.rxBytes * 8.0 / (iter->second.timeLastRxPacket.GetSeconds()-iter->second.timeFirstTxPacket.GetSeconds()) / 1024 <<"\n" ;  
+        }
+        else{
+            std::ofstream out8;
+            out8.open("SomethingIsWrong.txt", std::ios_base::app);
+            out8 << "X" <<"\n";
+        }
+        
         }
     }
-  monitor->SerializeToXmlFile("lab-5.flowmon", true, true);
+  monitor->SerializeToXmlFile("output.flowmon", true, true);
 
   Simulator::Destroy ();
 
